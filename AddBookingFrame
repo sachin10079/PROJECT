@@ -1,0 +1,172 @@
+package ui;
+
+import db.DBConnection;
+import javax.swing.*;
+import javax.swing.border.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.sql.*;
+
+import static ui.DashboardFrame.*;
+import static ui.RoomsFrame.*;
+
+public class AddBookingFrame extends JFrame {
+
+    private JTextField nameField, checkInField, checkOutField;
+    private JComboBox<String> roomCombo;
+    private int[] roomIds;
+
+    public AddBookingFrame() {
+        setTitle("Add New Booking");
+        setSize(460, 420);
+        setLocationRelativeTo(null);
+        setResizable(false);
+
+        JPanel root = new JPanel();
+        root.setBackground(BG_CONTENT);
+        root.setLayout(new BoxLayout(root, BoxLayout.Y_AXIS));
+        root.setBorder(new EmptyBorder(28, 40, 28, 40));
+        setContentPane(root);
+
+        // Title
+        JLabel title = new JLabel("➕  New Booking");
+        title.setFont(new Font("Arial", Font.BOLD, 20));
+        title.setForeground(TEXT_WHITE);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        root.add(title);
+        root.add(Box.createVerticalStrut(24));
+
+        // Customer Name
+        root.add(makeLabel("CUSTOMER NAME"));
+        root.add(Box.createVerticalStrut(6));
+        nameField = new JTextField();
+        styleField(nameField);
+        root.add(nameField);
+        root.add(Box.createVerticalStrut(16));
+
+        // Room
+        root.add(makeLabel("SELECT ROOM"));
+        root.add(Box.createVerticalStrut(6));
+        roomCombo = new JComboBox<>();
+        roomCombo.setBackground(new Color(38, 38, 38));
+        roomCombo.setForeground(TEXT_WHITE);
+        roomCombo.setFont(new Font("Arial", Font.PLAIN, 13));
+        roomCombo.setBorder(new LineBorder(BORDER_C, 1));
+        roomCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        roomCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        loadRooms();
+        root.add(roomCombo);
+        root.add(Box.createVerticalStrut(16));
+
+        // Check-in
+        root.add(makeLabel("CHECK-IN DATE (YYYY-MM-DD)"));
+        root.add(Box.createVerticalStrut(6));
+        checkInField = new JTextField();
+        styleField(checkInField);
+        root.add(checkInField);
+        root.add(Box.createVerticalStrut(16));
+
+        // Check-out
+        root.add(makeLabel("CHECK-OUT DATE (YYYY-MM-DD)"));
+        root.add(Box.createVerticalStrut(6));
+        checkOutField = new JTextField();
+        styleField(checkOutField);
+        root.add(checkOutField);
+        root.add(Box.createVerticalStrut(28));
+
+        // Book button
+        JButton bookBtn = makeBtn("Confirm Booking");
+        bookBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        bookBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bookBtn.addActionListener(e -> addBooking());
+        root.add(bookBtn);
+
+        setVisible(true);
+    }
+
+    private void loadRooms() {
+        try {
+            Connection con = DBConnection.getConnection();
+            ResultSet rs = con.createStatement().executeQuery(
+                    "SELECT id, room_number, type, price FROM rooms WHERE status='Available'");
+            java.util.List<Integer> ids = new java.util.ArrayList<>();
+            while (rs.next()) {
+                ids.add(rs.getInt("id"));
+                roomCombo.addItem("Room " + rs.getString("room_number") +
+                        "  (" + rs.getString("type") + ")  —  ₹" + rs.getString("price") + "/night");
+            }
+            roomIds = ids.stream().mapToInt(Integer::intValue).toArray();
+            con.close();
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+        }
+    }
+
+    private void addBooking() {
+        String name     = nameField.getText().trim();
+        String checkIn  = checkInField.getText().trim();
+        String checkOut = checkOutField.getText().trim();
+
+        if (name.isEmpty() || checkIn.isEmpty() || checkOut.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "⚠️ Please fill all fields.");
+            return;
+        }
+        if (roomCombo.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(this, "⚠️ No available rooms!");
+            return;
+        }
+
+        int roomId = roomIds[roomCombo.getSelectedIndex()];
+        try {
+            Connection con = DBConnection.getConnection();
+            PreparedStatement ps = con.prepareStatement(
+                    "INSERT INTO bookings (customer_name, room_id, check_in, check_out) VALUES (?,?,?,?)");
+            ps.setString(1, name);
+            ps.setInt(2, roomId);
+            ps.setString(3, checkIn);
+            ps.setString(4, checkOut);
+            ps.executeUpdate();
+
+            PreparedStatement ps2 = con.prepareStatement(
+                    "UPDATE rooms SET status='Booked' WHERE id=?");
+            ps2.setInt(1, roomId);
+            ps2.executeUpdate();
+
+            con.close();
+            JOptionPane.showMessageDialog(this, "✅ Booking confirmed for " + name + "!");
+            dispose();
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+        }
+    }
+
+    private JLabel makeLabel(String text) {
+        JLabel lbl = new JLabel(text);
+        lbl.setFont(new Font("Arial", Font.BOLD, 11));
+        lbl.setForeground(TEXT_GRAY);
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return lbl;
+    }
+
+    private void styleField(JTextField field) {
+        field.setBackground(new Color(38, 38, 38));
+        field.setForeground(TEXT_WHITE);
+        field.setCaretColor(GREEN_MAIN);
+        field.setFont(new Font("Arial", Font.PLAIN, 13));
+        field.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(BORDER_C, 1, true),
+                new EmptyBorder(8, 12, 8, 12)));
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        field.setAlignmentX(Component.LEFT_ALIGNMENT);
+        field.addFocusListener(new FocusAdapter() {
+            public void focusGained(FocusEvent e) {
+                field.setBorder(BorderFactory.createCompoundBorder(
+                        new LineBorder(GREEN_MAIN, 1, true), new EmptyBorder(8, 12, 8, 12)));
+            }
+            public void focusLost(FocusEvent e) {
+                field.setBorder(BorderFactory.createCompoundBorder(
+                        new LineBorder(BORDER_C, 1, true), new EmptyBorder(8, 12, 8, 12)));
+            }
+        });
+    }
+}
