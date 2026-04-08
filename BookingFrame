@@ -1,0 +1,86 @@
+package ui;
+
+import db.DBConnection;
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.sql.*;
+
+import static ui.DashboardFrame.*;
+import static ui.RoomsFrame.*;
+
+public class BookingFrame extends JFrame {
+
+    public BookingFrame() {
+        setTitle("All Bookings");
+        setSize(850, 480);
+        setLocationRelativeTo(null);
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(BG_CONTENT);
+        root.setBorder(new EmptyBorder(20, 20, 20, 20));
+        setContentPane(root);
+
+        JLabel title = new JLabel("📋  All Bookings");
+        title.setFont(new Font("Arial", Font.BOLD, 20));
+        title.setForeground(TEXT_WHITE);
+        title.setBorder(new EmptyBorder(0, 0, 15, 0));
+        root.add(title, BorderLayout.NORTH);
+
+        String[] cols = {"ID", "Customer", "Room No", "Type", "Check-In", "Check-Out", "Status"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+
+        try {
+            Connection con = DBConnection.getConnection();
+            String sql = "SELECT b.id, b.customer_name, r.room_number, r.type, " +
+                    "b.check_in, b.check_out, b.status " +
+                    "FROM bookings b JOIN rooms r ON b.room_id=r.id ORDER BY b.id DESC";
+            ResultSet rs = con.createStatement().executeQuery(sql);
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                        rs.getInt("id"),
+                        rs.getString("customer_name"),
+                        rs.getString("room_number"),
+                        rs.getString("type"),
+                        rs.getString("check_in"),
+                        rs.getString("check_out"),
+                        rs.getString("status")
+                });
+            }
+            con.close();
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+        }
+
+        JTable table = new JTable(model) {
+            public Component prepareRenderer(javax.swing.table.TableCellRenderer r, int row, int col) {
+                Component c = super.prepareRenderer(r, row, col);
+                String status = (String) getValueAt(row, 6);
+                if ("Confirmed".equals(status))    c.setForeground(GREEN_MAIN);
+                else if ("Cancelled".equals(status)) c.setForeground(new Color(239, 68, 68));
+                else                               c.setForeground(TEXT_WHITE);
+                c.setBackground(isRowSelected(row) ? HOVER_BG : CARD_BG);
+                return c;
+            }
+        };
+        styleTable(table);
+
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.getViewport().setBackground(CARD_BG);
+        scroll.setBorder(new LineBorder(BORDER_C, 1));
+        root.add(scroll, BorderLayout.CENTER);
+
+        JButton closeBtn = makeBtn("Close");
+        closeBtn.addActionListener(e -> dispose());
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        south.setBackground(BG_CONTENT);
+        south.setBorder(new EmptyBorder(12, 0, 0, 0));
+        south.add(closeBtn);
+        root.add(south, BorderLayout.SOUTH);
+
+        setVisible(true);
+    }
+}
